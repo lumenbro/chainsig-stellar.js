@@ -11,7 +11,8 @@
     "send-sol": "tsx send-sol.ts",
     "send-apt": "tsx send-apt.ts",
     "send-sui": "tsx send-sui.ts",
-    "send-xrp": "tsx send-xrp.ts"
+    "send-xrp": "tsx send-xrp.ts",
+    "send-cosmos": "tsx send-cosmos.ts"
   },
   "keywords": [],
   "author": "",
@@ -28,6 +29,7 @@
     "@noble/hashes": "^1.8.0",
     "@solana/web3.js": "^1.98.2",
     "chainsig.js": "file:../dist",
+    "cosmjs-types": "^0.9.0",
     "dotenv": "^16.5.0",
     "viem": "^2.30.6"
   },
