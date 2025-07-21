@@ -50,6 +50,12 @@ Examples for sending transfers with chainsig.js via near-api-js can be found in 
 
 Full typedocs for the library can be found [here](https://neardefi.github.io/chainsig.js/).
 
+## Using the Library
+
+Because of underlying dependencies this library is a Commonjs project. You may need to configure your projects to be able to use this library. 
+
+Here are simple example in [TypeScript](https://github.com/GregProuty/chainsig-simple-example) and [JavaScript](https://github.com/GregProuty/chainsig-es6-example). 
+
 ## Quick Example
 
 ```ts
@@ -82,7 +88,7 @@ const evmChain = new chainAdapters.evm.EVM({
 })
 
 async function main() {
-  
+
   // Derive address and public key
   const derivationPath = 'any_string'
   const { address, publicKey } = await evmChain.deriveAddressAndPublicKey(
