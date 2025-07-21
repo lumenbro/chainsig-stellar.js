@@ -1,6 +1,6 @@
 # Chainsig.js
 
-A TypeScript library for handling multi-chain transactions and signatures using MPC (Multi-Party Computation).
+A TypeScript library for creating transactions on different chains and signing them with NEAR's MPC (Multi-party Computation)service.
 
 ## Overview
 
@@ -43,76 +43,86 @@ yarn add chainsig.js
 pnpm add chainsig.js
 ```
 
-## Example Repo
-https://github.com/NearDeFi/chainsig-example
+## Docs and Examples
+Examples for sending transfers and function calls with chainsig.js via a wallet can be found in the [near-multichain](https://github.com/near-examples/near-multichain) repo, along with in depth documentations in the [NEAR docs](https://docs.near.org/chain-abstraction/chain-signatures/implementation).
+
+Examples for sending transfers with chainsig.js via near-api-js can be found in the [examples folder](./examples/).
+
+Full typedocs for the library can be found [here](https://neardefi.github.io/chainsig.js/).
 
 ## Quick Example
 
-```ts twoslash
-import { chainAdapters, contracts } from "chainsig.js";
-import { KeyPair, type KeyPairString } from "@near-js/crypto";
-import { createPublicClient, http } from "viem";
-import { mainnet } from "viem/chains";
+```ts
+import { contracts, chainAdapters } from 'chainsig.js'
+import { KeyPair } from '@near-js/crypto'
+import dotenv from 'dotenv'
+import { createPublicClient, http } from 'viem'
+import { sepolia } from 'viem/chains'
 
-// Initialize NEAR connection with credentials from environment
-const accountId = process.env.NEAR_ACCOUNT_ID;
-const privateKey = process.env.NEAR_PRIVATE_KEY as KeyPairString;
+// Load environment variables
+dotenv.config({ path: '.env' })
 
-if (!accountId || !privateKey) {
-  throw new Error(
-    "NEAR_ACCOUNT_ID and NEAR_PRIVATE_KEY must be set in environment",
-  );
-}
+const accountId = process.env.ACCOUNT_ID!
+const privateKey = process.env.PRIVATE_KEY!
+const keyPair = KeyPair.fromString(privateKey)
 
-const keypair = KeyPair.fromString(privateKey);
-
-const contract = new contracts.near.ChainSignatureContract({
-  networkId: "testnet",
-  contractId: "v1.signer-prod.testnet",
-  accountId,
-  keypair,
-});
+const contract = new contracts.ChainSignatureContract({
+  networkId: 'testnet',
+  contractId: 'v1.signer-prod.testnet',
+})
 
 const publicClient = createPublicClient({
-  chain: mainnet,
+  chain: sepolia,
   transport: http(),
-});
+})
 
 const evmChain = new chainAdapters.evm.EVM({
-  publicClient,
+  publicClient: publicClient as any,
   contract,
-});
+})
 
-// Derive address and public key
-const { address, publicKey } = await evmChain.deriveAddressAndPublicKey(
-  accountId,
-  "any_string",
-);
+async function main() {
+  
+  // Derive address and public key
+  const derivationPath = 'any_string'
+  const { address, publicKey } = await evmChain.deriveAddressAndPublicKey(
+    accountId,
+    derivationPath
+  )
+  console.log('address', address)
 
-// Check balance
-const { balance, decimals } = await evmChain.getBalance(address);
+  // Check balance
+  const { balance, decimals } = await evmChain.getBalance(address)
+  console.log('balance', balance)
 
-// Create and sign transaction
-const { transaction, hashesToSign } =
-  await evmChain.prepareTransactionForSigning({
-    from: "0x...",
-    to: "0x...",
-    value: 1n,
-  });
+  // Create and sign transaction
+  const { transaction, hashesToSign } = await evmChain.prepareTransactionForSigning({
+    from: address as `0x${string}`,
+    to: '0x427F9620Be0fe8Db2d840E2b6145D1CF2975bcaD' as `0x${string}`,
+    value: 1285141n,
+  })
 
-// Sign with MPC
-const signature = await contract.sign({
-  payload: hashesToSign[0].payload,
-  path: "any_string",
-  key_version: 0,
-});
+  // Sign with MPC
+  const signature = await contract.sign({
+    payloads: hashesToSign,
+    path: derivationPath,
+    keyType: 'Ecdsa',
+    signerAccount: {
+      accountId,
+      signAndSendTransactions: async () => [], // Use wallet selector or NAJ here, see examples above for full use
+    },
+  })
 
-// Add signature
-const signedTx = evmChain.finalizeTransactionSigning({
-  transaction,
-  rsvSignatures: [signature],
-});
+  // Add signature
+  const signedTx = evmChain.finalizeTransactionSigning({
+    transaction,
+    rsvSignatures: signature,
+  })
 
-// Broadcast transaction
-const txHash = await evmChain.broadcastTx(signedTx);
+  // Broadcast transaction
+  const { hash: txHash } = await evmChain.broadcastTx(signedTx)
+  console.log(`https://sepolia.etherscan.io/tx/${txHash}`)
+}
+
+main().catch(console.error)
 ```
