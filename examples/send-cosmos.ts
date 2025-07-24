@@ -6,6 +6,7 @@ import { Action } from '@near-js/transactions'
 import { contracts, chainAdapters } from 'chainsig.js'
 import { createAction } from '@near-wallet-selector/wallet-utils'
 import { MsgSend } from 'cosmjs-types/cosmos/bank/v1beta1/tx'
+
 import dotenv from 'dotenv'
 import { KeyPairString } from '@near-js/crypto'
 
@@ -40,6 +41,7 @@ async function main() {
   const derivationPath = 'any_string'
 
   // Create Cosmos chain instance for Babylon testnet
+  // Note: Babylon testnet might not be in chain-registry, so we provide custom endpoints
   const cosmosChain = new chainAdapters.cosmos.Cosmos({
     chainId: 'bbn-test-5',
     contract,
