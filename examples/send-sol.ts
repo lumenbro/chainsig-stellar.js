@@ -1,9 +1,11 @@
 import { InMemoryKeyStore } from '@near-js/keystores'
 import { KeyPair } from '@near-js/crypto'
-import { connect } from 'near-api-js'
+import { connect, Near } from 'near-api-js'
 import { getTransactionLastResult } from '@near-js/utils'
 import { Action } from '@near-js/transactions'
 import { contracts, chainAdapters } from 'chainsig.js'
+import { createPublicClient, http } from 'viem'
+import { sepolia } from 'viem/chains'
 import { createAction } from '@near-wallet-selector/wallet-utils'
 
 import { Connection as SolanaConnection } from '@solana/web3.js'

@@ -56,12 +56,6 @@ npm run send-xrp
 ```
 Demonstrates sending XRP using NEAR Chain Signatures on XRP Ledger testnet.
 
-### Cosmos (Babylon) Example
-```bash
-npm run send-cosmos
-```
-Demonstrates sending BBN tokens using NEAR Chain Signatures on Babylon testnet.
-
 ## Important Notes
 
 - **Funding Required**: The derived addresses need to be funded with native tokens for gas fees
