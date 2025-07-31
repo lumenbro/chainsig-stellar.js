@@ -1,8 +1,8 @@
 import { Account } from '@near-js/accounts'
 import { KeyPair } from '@near-js/crypto'
 import { InMemoryKeyStore } from '@near-js/keystores'
-import { JsonRpcProvider } from '@near-js/providers'
-import { InMemorySigner } from '@near-js/signers'
+import { JsonRpcProvider, type Provider } from '@near-js/providers'
+import { KeyPairSigner } from '@near-js/signers'
 
 import { DONT_CARE_ACCOUNT_ID } from '@contracts/constants'
 
@@ -26,26 +26,24 @@ export const getNearAccount = async ({
   const keyStore = new InMemoryKeyStore()
   await keyStore.setKey(networkId, accountId, keypair)
 
+  // Get the RPC URL for the network
+  const rpcUrl = {
+    testnet: 'https://rpc.testnet.near.org',
+    mainnet: 'https://rpc.mainnet.near.org',
+  }[networkId]
+
+  if (!rpcUrl) {
+    throw new Error(`Unsupported network: ${networkId}`)
+  }
+
   // Create provider using new v2.0.0+ API
   const provider = new JsonRpcProvider({
-    url: {
-      testnet: 'https://rpc.testnet.near.org',
-      mainnet: 'https://rpc.mainnet.near.org',
-    }[networkId],
+    url: rpcUrl,
   })
 
   // Create signer using new v2.0.0+ API
-  const signer = await InMemorySigner.fromKeyStore({
-    keyStore,
-    accountId,
-    networkId,
-  })
+  const signer = new KeyPairSigner(keypair)
 
-  // Use new Account constructor (v2.0.0+)
-  return new Account({
-    provider,
-    signer,
-    accountId,
-    networkId,
-  })
+  // Use Account constructor (accountId, provider, signer)
+  return new Account(accountId, provider as Provider, signer)
 }

@@ -1,6 +1,6 @@
 import { KeyPairString, KeyPair } from '@near-js/crypto'
 import { contracts, chainAdapters } from '../src/index'
-import { InMemorySigner } from '@near-js/signers'
+import { KeyPairSigner } from '@near-js/signers'
 import { JsonRpcProvider } from '@near-js/providers'
 import { Account } from '@near-js/accounts'
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk'
@@ -17,19 +17,14 @@ async function main() {
   // Create a signer from a private key string
   const privateKey = (process.env.PRIVATE_KEY || 'ed25519:3D4YudUahN1HMqD5VvhE6RdcjbJGgMvRpMYhtKZhKVGG5FNFMRik2bLBmXvSjSznKvJLhxpxehVLrDLpFAqbsciH') as KeyPairString
   const keyPair = KeyPair.fromString(privateKey)
-  const signer = await InMemorySigner.fromKeyPair('testnet', accountId, keyPair)
+  const signer = new KeyPairSigner(keyPair)
 
 const provider = new JsonRpcProvider({
   url: 'https://test.rpc.fastnear.com',
 })
 
-  // Use new Account constructor (v2.0.0+)
-  const account = new Account({
-    provider,
-    signer,
-    accountId,
-    networkId: 'testnet',
-  })
+  // Use Account constructor (accountId, provider, signer)
+  const account = new Account(accountId, provider, signer)
 
 const contract = new contracts.ChainSignatureContract({
   networkId: 'testnet',
