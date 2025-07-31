@@ -1,6 +1,8 @@
-import { Account, Connection } from '@near-js/accounts'
+import { Account } from '@near-js/accounts'
 import { KeyPair } from '@near-js/crypto'
 import { InMemoryKeyStore } from '@near-js/keystores'
+import { JsonRpcProvider } from '@near-js/providers'
+import { InMemorySigner } from '@near-js/signers'
 
 import { DONT_CARE_ACCOUNT_ID } from '@contracts/constants'
 
@@ -24,19 +26,26 @@ export const getNearAccount = async ({
   const keyStore = new InMemoryKeyStore()
   await keyStore.setKey(networkId, accountId, keypair)
 
-  const connection = Connection.fromConfig({
-    networkId,
-    provider: {
-      type: 'JsonRpcProvider',
-      args: {
-        url: {
-          testnet: 'https://rpc.testnet.near.org',
-          mainnet: 'https://rpc.mainnet.near.org',
-        }[networkId],
-      },
-    },
-    signer: { type: 'InMemorySigner', keyStore },
+  // Create provider using new v2.0.0+ API
+  const provider = new JsonRpcProvider({
+    url: {
+      testnet: 'https://rpc.testnet.near.org',
+      mainnet: 'https://rpc.mainnet.near.org',
+    }[networkId],
   })
 
-  return new Account(connection, accountId)
+  // Create signer using new v2.0.0+ API
+  const signer = await InMemorySigner.fromKeyStore({
+    keyStore,
+    accountId,
+    networkId,
+  })
+
+  // Use new Account constructor (v2.0.0+)
+  return new Account({
+    provider,
+    signer,
+    accountId,
+    networkId,
+  })
 }

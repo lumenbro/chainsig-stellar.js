@@ -1,4 +1,4 @@
-import { Account, Connection } from '@near-js/accounts'
+import { Account } from '@near-js/accounts'
 import { contracts, chainAdapters } from '../src/index'
 import { KeyPairString, KeyPair } from '@near-js/crypto'
 import { JsonRpcProvider } from '@near-js/providers'
@@ -25,8 +25,13 @@ const provider = new JsonRpcProvider({
   url: 'https://test.rpc.fastnear.com',
 })
 
-  const connection = new Connection('testnet', provider, signer as any, accountId)
-  const account = new Account(connection, accountId)
+  // Use new Account constructor (v2.0.0+)
+  const account = new Account({
+    provider,
+    signer,
+    accountId,
+    networkId: 'testnet',
+  })
 
 const contract = new contracts.ChainSignatureContract({
   networkId: 'testnet',

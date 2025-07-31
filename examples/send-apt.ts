@@ -2,7 +2,7 @@ import { KeyPairString, KeyPair } from '@near-js/crypto'
 import { contracts, chainAdapters } from '../src/index'
 import { InMemorySigner } from '@near-js/signers'
 import { JsonRpcProvider } from '@near-js/providers'
-import { Account, Connection } from '@near-js/accounts'
+import { Account } from '@near-js/accounts'
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk'
 import { createAction } from '@near-wallet-selector/wallet-utils'
 import { getTransactionLastResult } from '@near-js/utils'
@@ -23,8 +23,13 @@ const provider = new JsonRpcProvider({
   url: 'https://test.rpc.fastnear.com',
 })
 
-  const connection = new Connection('testnet', provider, signer as any, accountId)
-  const account = new Account(connection, accountId)
+  // Use new Account constructor (v2.0.0+)
+  const account = new Account({
+    provider,
+    signer,
+    accountId,
+    networkId: 'testnet',
+  })
 
 const contract = new contracts.ChainSignatureContract({
   networkId: 'testnet',
