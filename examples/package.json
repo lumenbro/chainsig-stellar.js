@@ -25,6 +25,7 @@
     "@near-js/providers": "^2.2.4",
     "@near-js/signers": "^2.2.4",
     "@near-js/utils": "^2.2.4",
+    "@near-wallet-selector/wallet-utils": "^9.0.2",
     "@noble/hashes": "^1.8.0",
     "@solana/web3.js": "^1.98.2",
     "chainsig.js": "file:../dist",
