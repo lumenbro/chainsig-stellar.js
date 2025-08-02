@@ -84,7 +84,7 @@ const signature = await contract.sign({
       const results = []
       
       for (const tx of walletSelectorTransactions) {
-        const actions = tx.actions
+        const actions = tx.actions.map((a: any) => createAction(a))
         
         const result = await account.signAndSendTransaction({
           receiverId: tx.receiverId,
