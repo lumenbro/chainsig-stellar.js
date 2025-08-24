@@ -36,7 +36,7 @@ export class Stellar extends ChainAdapter<
   private readonly networkId: 'mainnet' | 'testnet'
   private readonly horizonUrl: string
   private readonly networkPassphrase: string
-  private readonly contract: ChainSignatureContract
+  private readonly contract: ChainSignatureContract | any
 
   /**
    * Creates a new Stellar chain adapter instance
@@ -53,7 +53,7 @@ export class Stellar extends ChainAdapter<
   }: {
     networkId?: 'mainnet' | 'testnet'
     horizonUrl?: string
-    contract: ChainSignatureContract
+    contract: ChainSignatureContract | any // Allow flexible contract interface
   }) {
     super()
 
@@ -119,32 +119,39 @@ export class Stellar extends ChainAdapter<
     publicKey: string
   }> {
     try {
-      // Call Chain Signatures getDerivedPublicKey with Ed25519 domain
-      const derivationResult = await this.contract.getDerivedPublicKey({
-        path,
-        predecessor: '', // Use calling account
-        IsEd25519: true, // Use Ed25519 domain for Stellar
+      // Use the working Chain Signatures method with proper Ed25519 domain
+      const pubkeyArgs = {
+        path: path,
+        predecessor: predecessor, // Use the NEAR account ID as predecessor
+        domain_id: 1 // CRITICAL: Forces Ed25519 instead of secp256k1 default
+      }
+
+      // Call the NEAR contract directly using the account's viewFunction method
+      // This bypasses the ChainSignatureContract wrapper that was causing issues
+      const derivationResult = await this.contract.account.viewFunction({
+        contractId: 'v1.signer',
+        methodName: 'derived_public_key',
+        args: pubkeyArgs
       })
 
-      // Parse the result - format: "ed25519:BASE58_KEY"
-      let publicKeyBase58: string
-      if (typeof derivationResult === 'string' && derivationResult.startsWith('ed25519:')) {
-        publicKeyBase58 = derivationResult.replace('ed25519:', '')
-      } else {
-        throw new Error('Unexpected derivation result format')
+      // Parse the result - format: "ed25519:BG7EQVw84cC7L7sSWm7NAwCM7SxdomMydfwor9DrVbCm"
+      if (typeof derivationResult !== 'string' || !derivationResult.startsWith('ed25519:')) {
+        throw new Error(`Unexpected derivation result format: ${derivationResult}`)
       }
 
+      const publicKeyBase58 = derivationResult.replace('ed25519:', '')
+      
       // Decode base58 to get raw public key bytes
       const bs58 = require('bs58').default || require('bs58')
-      const publicKeyBytes = bs58.decode(publicKeyBase58)
+      const derivedPubKeyBytes = bs58.decode(publicKeyBase58)
 
-      if (publicKeyBytes.length !== 32) {
-        throw new Error(`Invalid public key length: ${publicKeyBytes.length}, expected 32`)
+      if (derivedPubKeyBytes.length !== 32) {
+        throw new Error(`Invalid public key length: ${derivedPubKeyBytes.length}, expected 32`)
       }
 
-      // Convert to Stellar G-address
-      const stellarAddress = StrKey.encodeEd25519PublicKey(publicKeyBytes)
-      const publicKeyHex = Buffer.from(publicKeyBytes).toString('hex')
+      // Convert to Stellar G-address using the correct method
+      const stellarAddress = StrKey.encodeEd25519PublicKey(derivedPubKeyBytes)
+      const publicKeyHex = Buffer.from(derivedPubKeyBytes).toString('hex')
 
       return {
         address: stellarAddress,
@@ -249,26 +256,36 @@ export class Stellar extends ChainAdapter<
     rsvSignatures,
   }: {
     transaction: any
-    rsvSignatures: RSVSignature[]
+    rsvSignatures: any[] // Updated to handle actual Chain Signatures response format
   }): string {
     try {
       if (!rsvSignatures || rsvSignatures.length === 0) {
         throw new Error('No signatures provided')
       }
 
-      // Get the signature from Chain Signatures
-      const signature = rsvSignatures[0]
+      // Handle Chain Signatures response format
+      // The signature comes from transaction result's SuccessValue
+      const signatureResult = rsvSignatures[0]
       let signatureBytes: Buffer
 
-      // Handle different signature formats from Chain Signatures
-      if ('signature' in signature && Array.isArray(signature.signature)) {
-        // Format: {scheme: "Ed25519", signature: [byte array]}
-        signatureBytes = Buffer.from(signature.signature)
-      } else if (Array.isArray(signature)) {
-        // Direct byte array format
-        signatureBytes = Buffer.from(signature)
+      // Parse signature from Chain Signatures response
+      if (signatureResult && typeof signatureResult === 'object') {
+        if ('signature' in signatureResult && Array.isArray(signatureResult.signature)) {
+          // Direct 64-byte signature array from SuccessValue parsing
+          signatureBytes = Buffer.from(signatureResult.signature)
+        } else if (Array.isArray(signatureResult)) {
+          // Direct array format
+          signatureBytes = Buffer.from(signatureResult)
+        } else if (signatureResult.transaction_outcome?.outcome?.receipts_outcome?.[0]?.outcome?.executor_outcome?.outcome?.SuccessValue) {
+          // Parse from full NEAR transaction result
+          const successValue = signatureResult.transaction_outcome.outcome.receipts_outcome[0].outcome.executor_outcome.outcome.SuccessValue
+          const parsed = JSON.parse(Buffer.from(successValue, 'base64').toString('utf8'))
+          signatureBytes = Buffer.from(parsed.signature)
+        } else {
+          throw new Error('Unable to extract signature from Chain Signatures response')
+        }
       } else {
-        throw new Error('Unsupported signature format')
+        throw new Error('Invalid signature format from Chain Signatures')
       }
 
       if (signatureBytes.length !== 64) {
@@ -280,7 +297,7 @@ export class Stellar extends ChainAdapter<
       const sourceKeypair = Keypair.fromPublicKey(sourceAddress)
       const signatureHint = sourceKeypair.signatureHint()
 
-      // Create decorated signature
+      // Create decorated signature - Apply 64-byte signature directly (no public key concatenation)
       const decoratedSignature = new xdr.DecoratedSignature({
         hint: signatureHint,
         signature: signatureBytes,
@@ -396,4 +413,101 @@ export class Stellar extends ChainAdapter<
       decimals: 7,
     }
   }
+
+  /**
+   * Alternative method for deriving address when using a direct NEAR account
+   * This method works directly with a NEAR account object instead of the contract wrapper
+   * 
+   * @param nearAccount - Direct NEAR account object
+   * @param nearAccountId - The NEAR account ID
+   * @param path - Derivation path (e.g., 'stellar-1')
+   * @returns Promise resolving to derived address and public key
+   */
+  async deriveAddressWithNearAccount(
+    nearAccount: any,
+    nearAccountId: string,
+    path: string
+  ): Promise<{
+    address: string
+    publicKey: string
+  }> {
+    try {
+      const pubkeyArgs = {
+        path: path,
+        predecessor: nearAccountId,
+        domain_id: 1 // Ed25519 domain for Stellar
+      }
+
+      const result = await nearAccount.viewFunction({
+        contractId: 'v1.signer',
+        methodName: 'derived_public_key',
+        args: pubkeyArgs
+      })
+
+      // Parse result: "ed25519:BG7EQVw84cC7L7sSWm7NAwCM7SxdomMydfwor9DrVbCm"
+      const parsed = result.replace('ed25519:', '')
+      const bs58 = require('bs58').default || require('bs58')
+      const derivedPubKeyBytes = bs58.decode(parsed)
+      const stellarAddress = StrKey.encodeEd25519PublicKey(derivedPubKeyBytes)
+      
+      return {
+        address: stellarAddress,
+        publicKey: Buffer.from(derivedPubKeyBytes).toString('hex')
+      }
+    } catch (error) {
+      throw new Error(`Failed to derive address with NEAR account: ${(error as Error).message}`)
+    }
+  }
+
+  /**
+   * Sign a transaction using a direct NEAR account object
+   * This method handles the complete signing process including parsing the response
+   * 
+   * @param nearAccount - Direct NEAR account object
+   * @param nearAccountId - The NEAR account ID
+   * @param path - Derivation path used for signing
+   * @param transactionHash - Transaction hash to sign
+   * @returns Promise resolving to the parsed signature
+   */
+  async signWithNearAccount(
+    nearAccount: any,
+    nearAccountId: string,
+    path: string,
+    transactionHash: Uint8Array
+  ): Promise<{
+    signature: Buffer
+  }> {
+    try {
+      const txHashHex = Buffer.from(transactionHash).toString('hex')
+      
+      const signRequest = {
+        path: path,
+        domain_id: 1, // Ed25519 domain
+        payload_v2: {
+          Eddsa: txHashHex
+        }
+      }
+
+      const result = await nearAccount.functionCall({
+        contractId: 'v1.signer',
+        methodName: 'sign',
+        args: { request: signRequest },
+        gas: '250000000000000',
+        attachedDeposit: '1'
+      })
+
+      // Parse signature from SuccessValue
+      const signatureBase64 = result.transaction_outcome.outcome.receipts_outcome[0].outcome.executor_outcome.outcome.SuccessValue
+      const parsed = JSON.parse(Buffer.from(signatureBase64, 'base64').toString('utf8'))
+      const signature64Bytes = Buffer.from(parsed.signature)
+
+      return {
+        signature: signature64Bytes
+      }
+    } catch (error) {
+      throw new Error(`Failed to sign with NEAR account: ${(error as Error).message}`)
+    }
+  }
+
+
 }
