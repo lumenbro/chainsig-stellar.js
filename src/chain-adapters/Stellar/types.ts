@@ -12,18 +12,8 @@ export interface StellarUnsignedTransaction {
   source: string
   fee: string
   sequence: string
-  operations: Array<{
-    type: string
-    destination: string
-    asset: {
-      type: string
-    }
-    amount: string
-  }>
-  memo?: {
-    type: string
-    value: string
-  }
+  operations: any[]
+  memo?: any
   timeBounds?: {
     minTime: string
     maxTime: string

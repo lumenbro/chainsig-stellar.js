@@ -2,6 +2,7 @@ import {
   Account,
   Asset,
   Keypair,
+  Memo,
   Networks,
   Operation,
   StrKey,
@@ -118,11 +119,11 @@ export class Stellar extends ChainAdapter<
     publicKey: string
   }> {
     try {
-      // Call Chain Signatures derived_public_key with Ed25519 domain
-      const derivationResult = await this.contract.derived_public_key({
+      // Call Chain Signatures getDerivedPublicKey with Ed25519 domain
+      const derivationResult = await this.contract.getDerivedPublicKey({
         path,
-        predecessor: null, // Use calling account
-        domain_id: 1, // Ed25519 domain for Stellar
+        predecessor: '', // Use calling account
+        IsEd25519: true, // Use Ed25519 domain for Stellar
       })
 
       // Parse the result - format: "ed25519:BASE58_KEY"
@@ -216,7 +217,7 @@ export class Stellar extends ChainAdapter<
 
       // Add memo if provided
       if (memo) {
-        transactionBuilder.addMemo(Transaction.Memo.text(memo))
+        transactionBuilder.addMemo(Memo.text(memo))
       }
 
       // Set timeout and build
@@ -227,7 +228,7 @@ export class Stellar extends ChainAdapter<
       const hashBytes = Array.from(transactionHash) // Convert to number array for chainsig.js compatibility
 
       return {
-        transaction: transaction as StellarUnsignedTransaction,
+        transaction: transaction as any,
         hashesToSign: [hashBytes],
       }
     } catch (error) {
@@ -247,7 +248,7 @@ export class Stellar extends ChainAdapter<
     transaction,
     rsvSignatures,
   }: {
-    transaction: StellarUnsignedTransaction
+    transaction: any
     rsvSignatures: RSVSignature[]
   }): string {
     try {
@@ -260,7 +261,7 @@ export class Stellar extends ChainAdapter<
       let signatureBytes: Buffer
 
       // Handle different signature formats from Chain Signatures
-      if (signature.signature && Array.isArray(signature.signature)) {
+      if ('signature' in signature && Array.isArray(signature.signature)) {
         // Format: {scheme: "Ed25519", signature: [byte array]}
         signatureBytes = Buffer.from(signature.signature)
       } else if (Array.isArray(signature)) {
