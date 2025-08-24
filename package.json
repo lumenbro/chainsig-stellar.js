@@ -1,7 +1,7 @@
 {
-  "name": "chainsig.js",
-  "version": "1.1.6",
-  "description": "ChainSig Library",
+  "name": "@lumenbro/chainsig-stellar",
+  "version": "1.2.0",
+  "description": "ChainSig Library with Stellar (XLM) support - Fork of chainsig.js",
   "license": "MIT",
   "type": "module",
   "files": [
@@ -129,6 +129,7 @@
     "@noble/hashes": "^1.8.0",
     "@scure/base": "^1.2.4",
     "@solana/web3.js": "^1.98.0",
+    "@stellar/stellar-sdk": "^13.1.0",
     "base32-decode": "^1.0.0",
     "bech32": "^2.0.0",
     "bitcoinjs-lib": "^6.1.5",

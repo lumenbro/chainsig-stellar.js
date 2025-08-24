@@ -1,6 +1,8 @@
-# Chainsig.js
+# ChainSig.js with Stellar Support
 
-A TypeScript library for creating transactions for different chains and signing them with NEAR's MPC (Multi-party Computation)service.
+A TypeScript library for creating transactions for different chains and signing them with NEAR's MPC (Multi-party Computation) service.
+
+**🌟 This fork adds Stellar (XLM) support to the original chainsig.js library.**
 
 ## Overview
 
@@ -8,7 +10,7 @@ This library provides a unified interface for interacting with different blockch
 
 ## Features
 
-- **Multi-Chain Support**: Built-in support for EVM chains, Bitcoin, Cosmos, Solana, Aptos, and SUI networks
+- **Multi-Chain Support**: Built-in support for EVM chains, Bitcoin, Cosmos, Solana, Aptos, SUI, XRP, and **Stellar** networks
 - **Unified Interface**: Common API across all supported chains
 - **MPC Integration**: Secure key management and transaction signing
 - **Type Safety**: Full TypeScript support with comprehensive type definitions
@@ -26,6 +28,7 @@ The library provides chain adapters for the following blockchain networks:
 - **Aptos**: Move-based blockchain with Ed25519 signature support
 - **SUI**: Move-based blockchain with Ed25519 signature support
 - **XRP Ledger**: XRP mainnet, testnet, and devnet with native XRP transfers
+- **Stellar**: Stellar mainnet and testnet with native XLM transfers and Ed25519 MPC signing
 
 Each chain adapter provides a unified interface for:
 - Address and public key derivation
@@ -126,4 +129,48 @@ const signedTx = evmChain.finalizeTransactionSigning({
 
 // Broadcast transaction
 const txHash = await evmChain.broadcastTx(signedTx);
+```
+
+## Stellar Example
+
+```ts
+import { chainAdapters, contracts } from "@lumenbro/chainsig-stellar";
+
+// Initialize Stellar chain adapter
+const stellarChain = new chainAdapters.stellar.Stellar({
+  networkId: "mainnet", // or "testnet"
+  contract,
+});
+
+// Derive Stellar address
+const { address, publicKey } = await stellarChain.deriveAddressAndPublicKey(
+  accountId,
+  "stellar-1"
+);
+
+// Check XLM balance
+const { balance, decimals } = await stellarChain.getBalance(address);
+
+// Create and sign Stellar transaction
+const { transaction, hashesToSign } = await stellarChain.prepareTransactionForSigning({
+  from: address,
+  to: "GDGF3FVUFVQKSH5VL63ESKKFU5PMP2KIM5SY3RUKP3OFKWGQPR7MQ4U7",
+  amount: "10.5", // XLM amount
+  memo: "Payment via ChainSig",
+  publicKey,
+});
+
+// Sign with MPC using Ed25519 domain
+const signature = await contract.sign(
+  stellarChain.createSignRequest("stellar-1", hashesToSign[0])
+);
+
+// Finalize and broadcast
+const signedTx = stellarChain.finalizeTransactionSigning({
+  transaction,
+  rsvSignatures: [signature],
+});
+
+const result = await stellarChain.broadcastTx(signedTx);
+console.log("Stellar transaction hash:", result.hash);
 ```
