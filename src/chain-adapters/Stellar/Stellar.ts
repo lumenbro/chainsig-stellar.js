@@ -509,5 +509,84 @@ export class Stellar extends ChainAdapter<
     }
   }
 
+  /**
+   * Convenience method to derive Stellar address from chain name
+   * This method handles both chain names ('stellar') and full paths ('stellar-1')
+   * Compatible with MultiChainWallet.js getChainDerivedAddress API
+   * 
+   * @param nearAccountId - The NEAR account ID
+   * @param chainNameOrPath - Chain name (e.g., 'stellar') or full path (e.g., 'stellar-1')
+   * @returns Promise resolving to derived address and metadata
+   */
+  async getChainDerivedAddress(
+    nearAccountId: string, 
+    chainNameOrPath: string = 'stellar'
+  ): Promise<{
+    address: string
+    publicKey: string
+    path: string
+    domainId: number
+    curveType: string
+  }> {
+    try {
+      // Handle both chain name (e.g., 'stellar') and full path (e.g., 'stellar-1')
+      let path, chain;
+      
+      if (chainNameOrPath.includes('-')) {
+        // Full path provided (e.g., 'stellar-1')
+        path = chainNameOrPath;
+        chain = chainNameOrPath.split('-')[0].toLowerCase();
+      } else {
+        // Chain name provided (e.g., 'stellar')
+        chain = chainNameOrPath.toLowerCase();
+        path = `${chain}-1`;  // Default to -1 suffix
+      }
+      
+      // Stellar always uses Ed25519 (domain_id: 1)
+      const domainId = 1;
+      const curveType = 'Ed25519';
+      
+      console.log(`🔑 Deriving ${chain} address with domain_id: ${domainId} (${curveType})`);
+
+      const pubkeyArgs = {
+        path: path,
+        predecessor: nearAccountId,
+        domain_id: domainId
+      };
+
+      const derivationResult = await this.contract.account.viewFunction({
+        contractId: 'v1.signer',
+        methodName: 'derived_public_key',
+        args: pubkeyArgs
+      });
+
+      // Parse the result - format: "ed25519:BASE58_KEY"
+      if (typeof derivationResult !== 'string' || !derivationResult.startsWith('ed25519:')) {
+        throw new Error(`Unexpected derivation result format: ${derivationResult}`)
+      }
+
+      const publicKeyBase58 = derivationResult.replace('ed25519:', '');
+      const bs58 = require('bs58').default || require('bs58');
+      const derivedPubKeyBytes = bs58.decode(publicKeyBase58);
+
+      if (derivedPubKeyBytes.length !== 32) {
+        throw new Error(`Invalid public key length: ${derivedPubKeyBytes.length}, expected 32`);
+      }
+
+      const stellarAddress = StrKey.encodeEd25519PublicKey(derivedPubKeyBytes);
+      const publicKeyHex = Buffer.from(derivedPubKeyBytes).toString('hex');
+
+      return {
+        address: stellarAddress,
+        publicKey: publicKeyHex,
+        path: path,
+        domainId: domainId,
+        curveType: curveType
+      };
+    } catch (error) {
+      console.error(`❌ Failed to derive address for ${chainNameOrPath}:`, error);
+      throw new Error(`Failed to derive address for ${chainNameOrPath}: ${(error as Error).message}`);
+    }
+  }
 
 }
