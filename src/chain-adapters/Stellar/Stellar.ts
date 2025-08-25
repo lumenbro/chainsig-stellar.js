@@ -44,7 +44,11 @@ export class Stellar extends ChainAdapter<
    * @param params - Configuration parameters
    * @param params.networkId - Network identifier ('mainnet' or 'testnet')
    * @param params.horizonUrl - Optional custom Horizon server URL
-   * @param params.contract - Instance of the chain signature contract for MPC operations
+   * @param params.contract - NEAR contract instance for Chain Signatures MPC operations.
+   *                         Required for address derivation methods. Can be:
+   *                         - ChainSignatureContract wrapper (with getDerivedPublicKey method)
+   *                         - NEAR contract wrapper (with account.viewFunction method)
+   *                         - Direct NEAR account (with viewFunction method)
    */
   constructor({
     networkId = 'mainnet',
@@ -53,7 +57,7 @@ export class Stellar extends ChainAdapter<
   }: {
     networkId?: 'mainnet' | 'testnet'
     horizonUrl?: string
-    contract: ChainSignatureContract | any // Allow flexible contract interface
+    contract: ChainSignatureContract | any // Allow flexible contract interface for different NEAR setups
   }) {
     super()
 
@@ -529,6 +533,14 @@ export class Stellar extends ChainAdapter<
     curveType: string
   }> {
     try {
+      // Validate contract availability
+      if (!this.contract) {
+        throw new Error(
+          'Contract instance required for address derivation. ' +
+          'Please provide a contract parameter when initializing the Stellar adapter.'
+        );
+      }
+
       // Handle both chain name (e.g., 'stellar') and full path (e.g., 'stellar-1')
       let path, chain;
       
@@ -554,11 +566,38 @@ export class Stellar extends ChainAdapter<
         domain_id: domainId
       };
 
-      const derivationResult = await this.contract.account.viewFunction({
-        contractId: 'v1.signer',
-        methodName: 'derived_public_key',
-        args: pubkeyArgs
-      });
+      let derivationResult;
+
+      // Handle different contract types and structures
+      if (this.contract.account && typeof this.contract.account.viewFunction === 'function') {
+        // Contract wrapper with account property
+        derivationResult = await this.contract.account.viewFunction({
+          contractId: 'v1.signer',
+          methodName: 'derived_public_key',
+          args: pubkeyArgs
+        });
+      } else if (typeof this.contract.viewFunction === 'function') {
+        // Direct NEAR account object
+        derivationResult = await this.contract.viewFunction({
+          contractId: 'v1.signer',
+          methodName: 'derived_public_key',
+          args: pubkeyArgs
+        });
+      } else if (this.contract.getDerivedPublicKey && typeof this.contract.getDerivedPublicKey === 'function') {
+        // ChainSignatureContract wrapper
+        derivationResult = await this.contract.getDerivedPublicKey({
+          path: path,
+          predecessor: nearAccountId,
+          IsEd25519: true
+        });
+      } else {
+        throw new Error(
+          'Invalid contract instance. Contract must have either:\n' +
+          '- account.viewFunction method (NEAR contract wrapper)\n' +
+          '- viewFunction method (direct NEAR account)\n' +
+          '- getDerivedPublicKey method (ChainSignatureContract wrapper)'
+        );
+      }
 
       // Parse the result - format: "ed25519:BASE58_KEY"
       if (typeof derivationResult !== 'string' || !derivationResult.startsWith('ed25519:')) {
